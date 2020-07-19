@@ -99,21 +99,46 @@ def sparse_raster(dict sparse):
 @cython.initializedcheck(False)
 @cython.cdivision(True)
 def entropy(int x, dict sparse):
+    """
+    The basic Shannon entropy for one channel.
+    
+    Arguments:
+        x:
+            The channel number.
+        sparse:
+            The sparse-data dictionary.
+    
+    Returns:
+        The entropy of the channel. 
+    """
     
     cdef double nbins = sparse["nbins"]
     cdef set X = sparse["channels"][x]
     cdef double Nx = len(X)
     
-    cdef double p1_x = Nx / nbins
-    cdef double p0_x = 1 - p1_x
-    cdef double hx = -1*((p1_x*log2(p1_x)) + ((p0_x*log2(p0_x))))
+    cdef double p1_x = Nx / nbins #The probability of a spike. Small, for sparse data. 
+    cdef double p0_x = 1 - p1_x #The probability of no spike. Typically close to 1.
+    cdef double hx = -1*((p1_x*log2(p1_x)) + ((p0_x*log2(p0_x)))) #Sum(-p log(p))
     
     return hx
 
 @cython.initializedcheck(False)
 @cython.cdivision(True)
 def joint_entropy(int x, int y, dict sparse):
+    """
+    Bivariate joint Shannon entropy for one channel.
     
+    Arguments:
+        x:
+            A channel number.
+        y:
+            A channel number.
+        sparse:
+            The sparse-data dictionary.
+    
+    Returns:
+        The joint entropy of the two channels.. 
+    """    
     cdef double nbins = sparse["nbins"]
     
     cdef set X = sparse["channels"][x]
@@ -121,17 +146,21 @@ def joint_entropy(int x, int y, dict sparse):
     cdef set Y = sparse["channels"][y]
     cdef double Ny = len(Y)
     
-    cdef double hist_xy[2][2]
-    hist_xy[0][:] = [0., 0.]
-    hist_xy[1][:] = [0., 0.]
+    cdef double hist_xy[2][2] #This will define the joint probability space.
+    hist_xy[0][:] = [0., 0.] #X = 0, Y = 0 | X = 0, Y = 1
+    hist_xy[1][:] = [0., 0.] #X = 1, Y = 0 | X = 1, Y = 1
     
-    red_xy = X.intersection(Y)
-    unq_x = X.difference(red_xy)
-    unq_y = Y.difference(red_xy)    
+    red_xy = X.intersection(Y) #Timestamps where the joint state of X and Y is 1, 1
+    unq_x = X.difference(red_xy) #When X = 1 and Y = 0
+    unq_y = Y.difference(red_xy) # When Y = 1 and X = 0
+    #We take the difference between X and red_xy so we are only keeping values of X with no associated spike in Y. 
     
-    hist_xy[1][1] = len(red_xy) / nbins
+    hist_xy[1][1] = len(red_xy) / nbins #The probability that X=1 and Y=1 simultaniously.
     hist_xy[0][1] = len(unq_x) / nbins
     hist_xy[1][0] = len(unq_y) / nbins 
+    
+    #The only remaining probability is X=0, Y=0. Since that condition has no stamps, it must be inferred,
+    #as the probability mass "left over" when all conditions with at least 1 spike are accounted for. 
     hist_xy[0][0] = 1 - (hist_xy[1][1] + hist_xy[0][1] + hist_xy[1][0])
         
     cdef int i, j 
@@ -140,7 +169,7 @@ def joint_entropy(int x, int y, dict sparse):
     for i in range(2):
         for j in range(2):
             if hist_xy[i][j] != 0:
-                hxy -= hist_xy[i][j]*log2(hist_xy[i][j])
+                hxy -= hist_xy[i][j]*log2(hist_xy[i][j]) #Once again, sum(-p log(p)). We just have more conditions now.  
     
     return hxy
 
@@ -157,10 +186,14 @@ def conditional_entropy(int x, int y, dict sparse):
     cdef set Y = sparse["channels"][y]
     cdef double Ny = len(Y)
     
+    #Calculating H(X)
+    #See the entropy() function for the logic. 
     cdef double p1_x = Nx / nbins
     cdef double p0_x = 1 - p1_x
     cdef double hx = -1*((p1_x*log2(p1_x)) + ((p0_x*log2(p0_x))))
     
+    #Calculating H(X,Y)
+    #See the joint_entropy() function for the logic. 
     cdef double hist_xy[2][2]
     hist_xy[0][:] = [0., 0.]
     hist_xy[1][:] = [0., 0.]
@@ -197,10 +230,6 @@ def mutual_information(int x, int y, dict sparse):
     cdef double Nx = len(X)
     cdef double Ny = len(Y)
     
-    red_xy = X.intersection(Y)
-    unq_x = X.difference(red_xy)
-    unq_y = Y.difference(red_xy)
-    
     cdef double p1_x = Nx / nbins
     cdef double p1_y = Ny / nbins
     cdef double p0_x = 1 - p1_x
@@ -208,6 +237,10 @@ def mutual_information(int x, int y, dict sparse):
     
     cdef double hx = -1*((p1_x*log2(p1_x)) + ((p0_x*log2(p0_x))))
     cdef double hy = -1*((p1_y*log2(p1_y)) + ((p0_y*log2(p0_y))))
+    
+    red_xy = X.intersection(Y)
+    unq_x = X.difference(red_xy)
+    unq_y = Y.difference(red_xy)
     
     cdef double hist_xy[2][2]
     hist_xy[0][:] = [0., 0.]
