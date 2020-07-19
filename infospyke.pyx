@@ -98,7 +98,7 @@ def sparse_raster(dict sparse):
 
 @cython.initializedcheck(False)
 @cython.cdivision(True)
-def entropy_sparse(int x, dict sparse):
+def entropy(int x, dict sparse):
     
     cdef double nbins = sparse["nbins"]
     cdef set X = sparse["channels"][x]
@@ -112,7 +112,7 @@ def entropy_sparse(int x, dict sparse):
 
 @cython.initializedcheck(False)
 @cython.cdivision(True)
-def joint_entropy_sparse(int x, int y, dict sparse):
+def joint_entropy(int x, int y, dict sparse):
     
     cdef double nbins = sparse["nbins"]
     
@@ -146,7 +146,7 @@ def joint_entropy_sparse(int x, int y, dict sparse):
 
 @cython.initializedcheck(False)
 @cython.cdivision(True)
-def conditional_entropy_sparse(int x, int y, dict sparse):
+def conditional_entropy(int x, int y, dict sparse):
     """
     H(Y|X) = H(X,Y) - H(X)
     """
@@ -185,7 +185,7 @@ def conditional_entropy_sparse(int x, int y, dict sparse):
 
 @cython.initializedcheck(False)
 @cython.cdivision(True)
-def mutual_information_sparse(int x, int y, dict sparse):
+def mutual_information(int x, int y, dict sparse):
     """
     I(X,Y) = H(X) + H(Y) - H(X,Y)
     """
@@ -230,7 +230,7 @@ def mutual_information_sparse(int x, int y, dict sparse):
 @cython.boundscheck(False)
 @cython.initializedcheck(False)
 @cython.cdivision(True)
-def mutual_information_matrix_sparse(dict sparse):
+def mutual_information_matrix(dict sparse):
     
     cdef double nbins = sparse["nbins"]
     cdef int nchannels = len(sparse["channels"])
@@ -285,7 +285,7 @@ def mutual_information_matrix_sparse(dict sparse):
 @cython.boundscheck(False)
 @cython.initializedcheck(False)
 @cython.cdivision(True)
-def conditional_mutual_information_sparse(int x, int y, int z, dict sparse):
+def conditional_mutual_information(int x, int y, int z, dict sparse):
     """
     I(X;Y|Z) = H(X,Z) + H(Y,Z) - H(X,Y,Z) - H(Z)
     """
@@ -376,7 +376,7 @@ def conditional_mutual_information_sparse(int x, int y, int z, dict sparse):
 @cython.boundscheck(False)
 @cython.initializedcheck(False)
 @cython.cdivision(True)
-def transfer_entropy_sparse(int x, int y, int lag, dict sparse):
+def transfer_entropy(int x, int y, int lag, dict sparse):
     """
     TE(X -> Y) = I(Yt ; Xp | Yp )
     I(X;Y|Z) = H(X,Z) + H(Y,Z) - H(X,Y,Z) - H(Z)
