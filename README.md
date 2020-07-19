@@ -1,5 +1,5 @@
 # infospyke
-Information theoretic analysis of binary spiking data.
+Information theoretic analysis of binary spiking data, aimed primarilly at researchers interetested in constructing networks based on bivariate information measures (mutual information, transfer entropy) 
 
 Infospyke is designed for computational neuroscientists working with spiking neural data represented in a binary format (multi-electrode array spiking data, CA imaging, binarized fMRI data, etc). 
 The code leverages the following assumptions for extremely rapid computation of information-theoretic measues:
@@ -23,3 +23,19 @@ This sparse, dictionary-based format means that the computational complexity gro
 In the downloaded directory, run ``python setup.py install``
 This will compile the Cython code. 
 From there you can ``import`` like any other python code. 
+
+## Functions
+
+Currently implemented analyses are:
+
+Shannon entropy (base 2)
+Joint entropy (bivariate)
+Conditional Entropy (bivariate)
+Mutual Information (bivariate)
+Conditional Mutual Information (trivariate)
+Transfer Entropy (bivariate, variable lags). 
+
+At some point we may implement basic partial-information decomposition (PID). 
+
+We will also soon be including measures of integration. 
+
