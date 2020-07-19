@@ -1,7 +1,7 @@
 # infospyke
 Information theoretic analysis of binary spiking data.
 
-Infospyke is designed for computational neuroscientists working with spiking neural data represented in a binary format. 
+Infospyke is designed for computational neuroscientists working with spiking neural data represented in a binary format (multi-electrode array spiking data, CA imaging, binarized fMRI data, etc). 
 The code leverages the following assumptions for extremely rapid computation of information-theoretic measues:
 1) The data is binary (spike = 1, quiescent = 0). 
 2) For every channel, the number of samples is the same. 
