@@ -101,6 +101,7 @@ def sparse_raster(dict sparse):
 def entropy(int x, dict sparse):
     """
     The basic Shannon entropy for one channel.
+    A measure of how uncertain are you about what the next state of the neuron will be. 
     
     Arguments:
         x:
@@ -127,6 +128,7 @@ def entropy(int x, dict sparse):
 def joint_entropy(int x, int y, dict sparse):
     """
     Bivariate joint Shannon entropy for one channel.
+    A measure of uncertainty about the joint state of two neurons. 
     
     Arguments:
         x:
@@ -178,6 +180,18 @@ def joint_entropy(int x, int y, dict sparse):
 def conditional_entropy(int x, int y, dict sparse):
     """
     H(Y|X) = H(X,Y) - H(X)
+    Bivariate conditional entropy for two channels.
+    How much uncertainty do you have about the state of Y given that you know the state of X. 
+    
+    Arguments:
+        x:
+            A channel number.
+        y:
+            A channel number.
+        sparse:
+            The sparse-data dictionary.
+    Returns:
+        The conditional entropy H(Y|X)
     """
     cdef double nbins = sparse["nbins"]
     
@@ -221,6 +235,18 @@ def conditional_entropy(int x, int y, dict sparse):
 def mutual_information(int x, int y, dict sparse):
     """
     I(X,Y) = H(X) + H(Y) - H(X,Y)
+    The amount of information shared between two channels. 
+    
+    Arguments:
+        x:
+            A channel number.
+        y:
+            A channel number.
+        sparse:
+            The sparse-data dictionary.
+            
+    Returns:
+        The mutual information between X and Y.
     """
     cdef double nbins = sparse["nbins"]
     cdef int n 
@@ -230,6 +256,8 @@ def mutual_information(int x, int y, dict sparse):
     cdef double Nx = len(X)
     cdef double Ny = len(Y)
     
+    #Calculate H(X) and H(Y)
+    #See the entropy() function for the logic. 
     cdef double p1_x = Nx / nbins
     cdef double p1_y = Ny / nbins
     cdef double p0_x = 1 - p1_x
@@ -238,6 +266,8 @@ def mutual_information(int x, int y, dict sparse):
     cdef double hx = -1*((p1_x*log2(p1_x)) + ((p0_x*log2(p0_x))))
     cdef double hy = -1*((p1_y*log2(p1_y)) + ((p0_y*log2(p0_y))))
     
+    #Calculate H(X, Y)
+    #See the joint entropy function for the logic. 
     red_xy = X.intersection(Y)
     unq_x = X.difference(red_xy)
     unq_y = Y.difference(red_xy)
@@ -264,7 +294,16 @@ def mutual_information(int x, int y, dict sparse):
 @cython.initializedcheck(False)
 @cython.cdivision(True)
 def mutual_information_matrix(dict sparse):
+    """
+    Given a sparse data dictionary, calculates the pairwise mutual information for each set of two channels. 
     
+    Arguments:
+        sparse:
+            The sparse-data dictionary
+    
+    Returns:
+        An NxN, symmetric matrix. 
+    """
     cdef double nbins = sparse["nbins"]
     cdef int nchannels = len(sparse["channels"])
     cdef int i, j, x, y
@@ -279,20 +318,25 @@ def mutual_information_matrix(dict sparse):
     
     for i in range(nchannels):
         
+        #H(i)
+        #We can save time by pre-computing the entropy of i, rather than re-computing it for each row. 
         I = sparse["channels"][i]
         p1_i = len(I) / nbins
         p0_i = 1 - p1_i
         hi = -1*((p1_i*log2(p1_i)) + (p0_i*log2(p0_i)))
         
-        mat[i][i] = hi
+        mat[i][i] = hi #The mutual informatio of a channel with itself is just the Shannon entropy of that channel. 
         
-        for j in range(i):
+        for j in range(i): #Because mutual information is symmetric, we only need one half of the matrix. 
             
+            #H(j)
             J = sparse["channels"][j]
             p1_j = len(J) / nbins
             p0_j = 1 - p1_j
             hj = -1*((p1_j*log2(p1_j)) + (p0_j*log2(p0_j)))
             
+            #H(i, j)
+            #See the joint_entropy function for the logic. 
             red_ij = I.intersection(J)
             unq_i = I.difference(red_ij)
             unq_j = J.difference(red_ij)
@@ -309,6 +353,7 @@ def mutual_information_matrix(dict sparse):
                     if hist_ij[x][y] != 0:
                         hij -= hist_ij[x][y]*log2(hist_ij[x][y])
                     
+            #MI(i,j) = MI(j,i) so we can calculate the matrix twice as fast. 
             mat[i][j] = hi + hj - hij
             mat[j][i] = hi + hj - hij
     
