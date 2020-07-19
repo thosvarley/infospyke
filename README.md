@@ -9,13 +9,15 @@ The code leverages the following assumptions for extremely rapid computation of 
 Multi-dimensional spiking time-series are represented in a sparse, dictionary-based format:
 
 ``sparse = {nbins : number_of_bins,
-            channels : {0 : set({timestamp_01, timestamp_02, timestamp_03...})}
-                     {1 : set({timestamp_11, timestamp_12, timestamp_13...})}
+
+            channels :  {0 : set({timestamp_01, timestamp_02, timestamp_03...})}
+            
+                        {1 : set({timestamp_11, timestamp_12, timestamp_13...})}
           }``
  
 This sparse, dictionary-based format means that the computational complexity grows with the number of spikes, as opposed to the number of bins, allowing for rapid anlaysis of large datasets. 
 
-##Installation
+## Installation
 In the downloaded directory, run ``python setup.py install``
 This will compile the Cython code. 
 From there you can ``import`` like any other python code. 
