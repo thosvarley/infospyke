@@ -554,7 +554,7 @@ def transfer_entropy(int x, int y, int lag, dict sparse):
 @cython.boundscheck(False)
 @cython.initializedcheck(False)
 @cython.cdivision(True)
-def transfer_entropy_matrix_sparse(dict sparse, int lag, bint norm=False):
+def transfer_entropy_matrix(dict sparse, int lag, bint norm=False):
     """
     Creates a TE matrix from node row_idx to node column_idx
     """
@@ -579,7 +579,7 @@ def transfer_entropy_matrix_sparse(dict sparse, int lag, bint norm=False):
     
         for i in range(N):
             if j != i:
-                mat[i][j] = transfer_entropy_sparse(i, j, lag, sparse)
+                mat[i][j] = transfer_entropy(i, j, lag, sparse)
                 
                 if norm == True:
                     mat[i][j] = mat[i][j] / hj
