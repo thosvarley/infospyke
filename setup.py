@@ -10,6 +10,6 @@ from Cython.Build import cythonize
 import numpy
 
 setup(
-    ext_modules=cythonize("sparse.pyx", annotate = True),
+    ext_modules=cythonize("infospyke.pyx", annotate = True),
     include_dirs=[numpy.get_include()]
 )
