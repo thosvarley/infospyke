@@ -458,6 +458,7 @@ def conditional_mutual_information(int x, int y, int z, dict sparse):
     return hxz + hyz - hxyz - hz
 
 @cython.boundscheck(False)
+@cython.wraparound(False)
 @cython.initializedcheck(False)
 @cython.cdivision(True)
 def transfer_entropy(int x, int y, int lag, dict sparse, bint null=False):
@@ -474,6 +475,8 @@ def transfer_entropy(int x, int y, int lag, dict sparse, bint null=False):
     cdef double nbins = sparse["nbins"]
     cdef int n
     cdef long[:] test
+    
+    cdef set source, target, Yt
     
     if null == True:
         rand = np.random.randint(0, 
