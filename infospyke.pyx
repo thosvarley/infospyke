@@ -13,17 +13,7 @@ from copy import deepcopy
 
 import pandas as pd 
 import matplotlib.pyplot as plt
-raster_dir = '/home/thosvarley/Documents/indiana_university/research/wenzel_anes/v1/results/rasters/'
-"""
-raster = pd.read_csv(raster_dir + "raster_awake.csv",header=None).values
 
-sparse = {"nbins":raster.shape[1]}
-sparse["channels"] = {}
-for i in range(raster.shape[0]):
-    sparse["channels"][i] = {x for x in np.where(raster[i] == 1)[0]}
-
-copy_sparse = deepcopy(sparse)
-"""
 @cython.wraparound(False)
 @cython.boundscheck(False)
 def raster_to_sparse(raster):
@@ -485,17 +475,18 @@ def transfer_entropy(int x, int y, int lag, dict sparse, bint null=False):
     cdef int n
     cdef long[:] test
     
-    source = sparse["channels"][x]    
     if null == True:
         rand = np.random.randint(0, 
-                                 max(sparse["channels"][y])+1, 
-                                 len(sparse["channels"][y]))
-        target = {x for x in rand}
+                                 nbins,
+                                 len(sparse["channels"][x]))
+        source = {x for x in rand}
     else:
-        target = sparse["channels"][y]
+        source = sparse["channels"][x]
+        
+    target = sparse["channels"][y]
     
     Yt = {n - lag for n in target} #This brings Yt "forward" in time. 
-    Xp = sparse["channels"][x] #Alternately, you could keep Yt the same and +1 to every time time in Xp and Yp
+    Xp = source #Alternately, you could keep Yt the same and +1 to every time time in Xp and Yp
     Yp = target
     
     #H(Yp)
@@ -581,9 +572,25 @@ def transfer_entropy(int x, int y, int lag, dict sparse, bint null=False):
 @cython.boundscheck(False)
 @cython.initializedcheck(False)
 @cython.cdivision(True)
-def transfer_entropy_matrix(dict sparse, int lag, bint norm=False, null=True):
+def transfer_entropy_matrix(dict sparse, int lag, null=False):#, bint norm=False, null=True):
     """
     Creates a TE matrix from node row_idx to node column_idx
+    
+    Arguments:
+        sparse:
+            The sparse-data dictionary.
+        lag:
+            The lag of the transfer entropy funciton. 
+        norm:
+            If True, the TE of every edge is normalized by the entropy of the reciever neuron.
+            Do not use in null == True
+        null:
+            If True, a null-edge is inferred by shuffling all recieving time-series prior to TE calculation.
+            Do not use if norm == True.
+    
+    Returns:
+        mat:
+            The transfer entropy matrix.
     """
     
     cdef int N = len(sparse["channels"])
@@ -595,24 +602,53 @@ def transfer_entropy_matrix(dict sparse, int lag, bint norm=False, null=True):
     
     cdef double[:,:] mat = np.zeros((N,N))
     
-    for j in range(N):   
-        if norm == True:
-            J = sparse["channels"][j]
-            Nj = len(J)
-    
-            p1_j = Nj / nbins
-            p0_j = 1 - p1_j
-            hj = -1*((p1_j*log2(p1_j)) + ((p0_j*log2(p0_j))))
-    
-        for i in range(N):
-            if j != i:
-                if null == False:
-                    mat[i][j] = transfer_entropy(i, j, lag, sparse)
-                else:
-                    mat[i][j] = transfer_entropy(i, j, lag, sparse, null=True)
-                
-                if norm == True:
-                    mat[i][j] = mat[i][j] / hj
-    
+    for i in range(N):
+        for j in range(N):
+            if null == False:
+                mat[i][j] = transfer_entropy(i, j, lag, sparse)
+            else:
+                mat[i][j] = transfer_entropy(i, j, lag, sparse, null=True)
     return mat
 
+"""
+raster_dir = '/home/thosvarley/Documents/indiana_university/research/wenzel_anes/v1/results/rasters/'
+raster = pd.read_csv(raster_dir + "raster_awake.csv",header=None).values
+sparse = raster_to_sparse(raster)
+
+te_mat = np.array(transfer_entropy_matrix(sparse, 1))
+num_nulls = 50
+alpha=0.01
+
+null_mats = []
+for i in range(num_nulls):
+    null_mats.append(np.array(transfer_entropy_matrix(sparse, 1, null=True)))
+    print(i)
+null_mats = np.array(null_mats)
+null_mean = np.mean(null_mats, axis=0)
+
+bin_mats = []
+for i in range(num_nulls):
+    bin_mats.append((null_mats[i] >= te_mat).astype(int))
+bin_mats = np.array(bin_mats)
+
+totals = np.sum(bin_mats, axis=0)
+alpha_mat = (np.divide(totals, num_nulls) < alpha).astype("double")
+np.fill_diagonal(alpha_mat, 0)
+te_mat*=alpha_mat
+
+
+
+old_mat = test = pd.read_csv("te_awake_160921.csv", header=None).values
+
+plt.figure()
+plt.subplot(1,2,1)
+plt.imshow(np.log(te_mat))
+plt.colorbar(label="log(TE)",fraction=0.046, pad=0.04)
+plt.title("Newest Pipeline (22/7)")
+plt.subplot(1,2,2)
+plt.imshow(np.log(old_mat))
+plt.colorbar(label="log(TE)",fraction=0.046, pad=0.04)
+plt.title("Older Pipeline (20/7)")
+plt.tight_layout()
+plt.savefig("compare_pipelines.png", dpi=250, bbox_inches="tight")
+"""
