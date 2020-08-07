@@ -297,6 +297,66 @@ def mutual_information(int x, int y, dict sparse):
         
     return hx + hy - hxy
 
+@cython.initializedcheck(False)
+@cython.cdivision(True)
+def auto_mutual_information(int x, int lag, dict sparse):
+    """
+    Returns the mutual information of a variable with a time-lagged version of itself.
+    
+    Arguments:
+        x:
+            A channel number.
+        y:
+            The lag, in timesteps, to shift the time-series.
+        sparse:
+            The sparse-data dictionary.
+            
+    Returns:
+        The mutual information between X(t) and X(t-lag).
+    """
+    cdef double nbins_full = sparse["nbins"]
+    cdef int n 
+    cdef set X = {i for i in sparse["channels"][x] if i < (nbins_full - lag)}
+    cdef set Y = {i-lag for i in sparse["channels"][x] if i > lag}
+    cdef double nbins = nbins_full - lag
+    
+    cdef double Nx = len(X)
+    cdef double Ny = len(Y)
+    
+    #Calculate H(X) and H(Y)
+    #See the entropy() function for the logic. 
+    cdef double p1_x = Nx / nbins
+    cdef double p1_y = Ny / nbins
+    cdef double p0_x = 1 - p1_x
+    cdef double p0_y = 1 - p1_y
+    
+    cdef double hx = -1*((p1_x*log2(p1_x)) + ((p0_x*log2(p0_x))))
+    cdef double hy = -1*((p1_y*log2(p1_y)) + ((p0_y*log2(p0_y))))
+    
+    #Calculate H(X, Y)
+    #See the joint entropy function for the logic. 
+    red_xy = X.intersection(Y)
+    unq_x = X.difference(red_xy)
+    unq_y = Y.difference(red_xy)
+    
+    cdef double hist_xy[2][2]
+    hist_xy[0][:] = [0., 0.]
+    hist_xy[1][:] = [0., 0.]
+    
+    hist_xy[1][1] = len(red_xy) / nbins
+    hist_xy[0][1] = len(unq_x) / nbins
+    hist_xy[1][0] = len(unq_y) / nbins 
+    hist_xy[0][0] = 1 - (hist_xy[1][1] + hist_xy[0][1] + hist_xy[1][0])
+        
+    cdef int i, j 
+    cdef double hxy = 0.0
+    for i in range(2):
+        for j in range(2):
+            if hist_xy[i][j] != 0:
+                hxy -= hist_xy[i][j]*log2(hist_xy[i][j])
+        
+    return hx + hy - hxy
+
 @cython.boundscheck(False)
 @cython.initializedcheck(False)
 @cython.cdivision(True)
@@ -571,6 +631,120 @@ def transfer_entropy(int x, int y, int lag, dict sparse, bint null=False):
     
     return h_Yt_Yp + h_Xp_Yp - h_Yt_Xp_Yp - h_Yp
 
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.initializedcheck(False)
+@cython.cdivision(True)
+def transfer_entropy_2(int x, int y, int lag, dict sparse, bint null=False):
+    """
+    TE(X -> Y) = I(Yt ; Xp | Yp )
+    I(Yt ; Xp | Yp) = H(Yt, Yp) + H(Xp, Yp) - H(Yt, Xp, Yp) - H(Yp)
+    
+    I(X;Y|Z) = H(X,Z) + H(Y,Z) - H(X,Y,Z) - H(Z)
+    
+    If bint is true, then the recievers spikes are shuffled in time and the result is a 
+    null value. Used for building up null distributions. 
+    """
+    
+    cdef double nbins = sparse["nbins"]
+    cdef int n
+    cdef long[:] test
+    
+    cdef set source, target, Yt
+    
+    source = sparse["channels"][x]
+    
+    if null == True:
+        rand = np.random.randint(0, 
+                                 nbins,
+                                 len(sparse["channels"][y]))
+        target = {x for x in rand}
+    else:
+        target = sparse["channels"][y]
+    
+    Yt = {n - lag for n in target} #This brings Yt "forward" in time. 
+    Xp = source #Alternately, you could keep Yt the same and +1 to every time time in Xp and Yp
+    Yp = target
+    
+    #H(Yp)
+    cdef double N_yp = len(Yp)
+    cdef double p1_Yp = N_yp / nbins
+    cdef double p0_Yp = 1 - p1_Yp
+    cdef double h_Yp = -1*((p1_Yp*log2(p1_Yp)) + ((p0_Yp*log2(p0_Yp))))
+    
+    #H(Yt, Yp)
+    #H(Xp, Yp)
+    cdef double hist_Yt_Yp[2][2]
+    hist_Yt_Yp[0][:] = [0., 0.]
+    hist_Yt_Yp[1][:] = [0., 0.]
+    
+    red_Yt_Yp = Yt.intersection(Yp)
+    unq_Yt = Yt.difference(red_Yt_Yp)
+    unq_Yp = Yp.difference(red_Yt_Yp)  
+    
+    hist_Yt_Yp[1][1] = len(red_Yt_Yp)
+    hist_Yt_Yp[0][1] = len(unq_Yt)
+    hist_Yt_Yp[1][0] = len(unq_Yp) 
+    hist_Yt_Yp[0][0] = nbins - (hist_Yt_Yp[1][1] + hist_Yt_Yp[0][1] + hist_Yt_Yp[1][0])
+    
+    cdef double hist_Xp_Yp[2][2]
+    hist_Xp_Yp[0][:] = [0., 0.]
+    hist_Xp_Yp[1][:] = [0., 0.]
+    
+    red_Xp_Yp = Xp.intersection(Yp)
+    unq_Xp = Xp.difference(red_Xp_Yp)
+    unq_Yp = Yp.difference(red_Xp_Yp)  
+    
+    hist_Xp_Yp[1][1] = len(red_Xp_Yp)
+    hist_Xp_Yp[0][1] = len(unq_Xp) 
+    hist_Xp_Yp[1][0] = len(unq_Yp) 
+    hist_Xp_Yp[0][0] = nbins - (hist_Xp_Yp[1][1] + hist_Xp_Yp[0][1] + hist_Xp_Yp[1][0])
+    
+    cdef double h_Xp_Yp = 0.0
+    cdef double h_Yt_Yp = 0.0
+    for i in range(2):
+        for j in range(2):
+            if hist_Yt_Yp[i][j] != 0:
+                h_Yt_Yp -= (hist_Yt_Yp[i][j] / nbins)*log2(hist_Yt_Yp[i][j] / nbins)
+                
+            if hist_Xp_Yp[i][j] != 0:
+                h_Xp_Yp -= (hist_Xp_Yp[i][j] / nbins)*log2(hist_Xp_Yp[i][j] / nbins)
+    
+    #H(Yt, Xp, Yp)
+    red_Yt_Xp_Yp = Yt.intersection(Xp,Yp)
+    red_Yt_Xp = Yt.intersection(Xp).difference(red_Yt_Xp_Yp)
+    red_Yt_Yp = Yt.intersection(Yp).difference(red_Yt_Xp_Yp)
+    red_Xp_Yp = Xp.intersection(Yp).difference(red_Yt_Xp_Yp)
+    
+    unq_Yt = Yt.difference(Xp,Yp)
+    unq_Xp = Xp.difference(Yt,Yp)
+    unq_Yp = Yp.difference(Yt,Xp)
+    
+    cdef double hist_Yt_Xp_Yp[1][8]
+    hist_Yt_Xp_Yp[0][:] = [0.,0.,0.,0.,0.,0.,0.,0.]
+    
+    hist_Yt_Xp_Yp[0][1] = len(unq_Yp)
+    hist_Yt_Xp_Yp[0][2] = len(unq_Xp)
+    hist_Yt_Xp_Yp[0][3] = len(unq_Yt)
+    hist_Yt_Xp_Yp[0][4] = len(red_Yt_Xp)
+    hist_Yt_Xp_Yp[0][5] = len(red_Yt_Yp)  
+    hist_Yt_Xp_Yp[0][6] = len(red_Xp_Yp)
+    hist_Yt_Xp_Yp[0][7] = len(red_Yt_Xp_Yp)    
+    hist_Yt_Xp_Yp[0][0] = nbins - (hist_Yt_Xp_Yp[0][1] + 
+                                    hist_Yt_Xp_Yp[0][2] + 
+                                    hist_Yt_Xp_Yp[0][3] + 
+                                    hist_Yt_Xp_Yp[0][4] + 
+                                    hist_Yt_Xp_Yp[0][5] + 
+                                    hist_Yt_Xp_Yp[0][6] + 
+                                    hist_Yt_Xp_Yp[0][7])#000  
+    
+    cdef double h_Yt_Xp_Yp = 0.0
+    for i in range(8):
+        if hist_Yt_Xp_Yp[0][i] != 0:
+            h_Yt_Xp_Yp -= (hist_Yt_Xp_Yp[0][i] / nbins)*(log2(hist_Yt_Xp_Yp[0][i] / nbins))
+    
+    return h_Yt_Yp + h_Xp_Yp - h_Yt_Xp_Yp - h_Yp
+
 
 @cython.boundscheck(False)
 @cython.initializedcheck(False)
@@ -613,11 +787,52 @@ def transfer_entropy_matrix(dict sparse, int lag, null=False):#, bint norm=False
                 mat[i][j] = transfer_entropy(i, j, lag, sparse, null=True)
     return mat
 
-"""
+@cython.boundscheck(False)
+@cython.initializedcheck(False)
+@cython.cdivision(True)
+def transfer_entropy_matrix_2(dict sparse, int lag, null=False):#, bint norm=False, null=True):
+    """
+    Creates a TE matrix from node row_idx to node column_idx
+    
+    Arguments:
+        sparse:
+            The sparse-data dictionary.
+        lag:
+            The lag of the transfer entropy funciton. 
+        norm:
+            If True, the TE of every edge is normalized by the entropy of the reciever neuron.
+            Do not use in null == True
+        null:
+            If True, a null-edge is inferred by shuffling all recieving time-series prior to TE calculation.
+            Do not use if norm == True.
+    
+    Returns:
+        mat:
+            The transfer entropy matrix.
+    """
+    
+    cdef int N = len(sparse["channels"])
+    cdef double nbins = sparse["nbins"]
+    cdef int i, j
+    cdef double Nj, p1_j, p0_j
+    cdef double hj = 1.0
+    cdef set J
+    
+    cdef double[:,:] mat = np.zeros((N,N))
+    
+    for i in range(N):
+        for j in range(N):
+            if null == False:
+                mat[i][j] = transfer_entropy_2(i, j, lag, sparse)
+            else:
+                mat[i][j] = transfer_entropy_2(i, j, lag, sparse, null=True)
+    return mat
+
+
 raster_dir = '/home/thosvarley/Documents/indiana_university/research/wenzel_anes/v1/results/rasters/'
 raster = pd.read_csv(raster_dir + "raster_awake.csv",header=None).values
 sparse = raster_to_sparse(raster)
-
+"""
 te_mat = np.array(transfer_entropy_matrix(sparse, 1))
 num_nulls = 50
 alpha=0.01
