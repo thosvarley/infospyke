@@ -535,6 +535,9 @@ def transfer_entropy(int x, int y, int lag, dict sparse, bint null = False, null
     
     cdef set source, target, Yt
     
+    if sparse["channels"][x] == 0 or sparse["channels"][y] == 0:
+        return 0
+    
     target = sparse["channels"][y]
     
     if null == True:
