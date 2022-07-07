@@ -30,6 +30,18 @@ def raster_to_sparse(raster):
 @cython.wraparound(False)
 @cython.boundscheck(False)
 def shuffle_sparse(dict sparse):
+    """
+    For a given sparse-raster object, shuffles all the spike times in place.
+
+    Parameters
+    ----------
+    dict sparse : sparse-raster object.
+
+    Returns
+    -------
+    None
+
+    """
     
     cdef int nbins = sparse["nbins"]
     cdef int i
@@ -46,18 +58,44 @@ def shuffle_sparse(dict sparse):
         
     return None
 
+
+@cython.wraparound(False)
+@cython.boundscheck(False)
+def circular_shift_sparse(dict sparse, int mx_shift):
+    
+    
+    
+    return None
+
+    
 @cython.wraparound(False)
 @cython.boundscheck(False)
 def jitter_sparse(dict sparse, int std):
     cdef int nbins = sparse["nbins"]
-    cdef int i
+    cdef int x, i, j, counter, newrand
     cdef dict channels = sparse["channels"]
     cdef int N = len(channels)
     cdef list lens = [len(channels[x]) for x in range(N)]
     cdef int mx = max(lens)
+    cdef int[:] rand
+    cdef set channel
     
     for i in range(N):
-        rand = [std*x for x in np.random.randn(len(channels[i]))]
+        channel = channels[i]
+        rand = (std*np.random.randn(len(channel))).astype(int)
+        counter = 0
+        for j in frozenset(channel):
+            if (j + rand[counter] not in channel) and (j + rand[counter] > 0) and (j + rand[counter] < nbins):
+                channel.add(j + rand[counter])
+                channel.remove(j)
+            else:
+                newrand = int(np.random.randn()*std)
+                while (j + newrand in channel) or (j + newrand < 0) or (j + newrand > nbins):
+                    newrand = int(np.random.randn()*std)
+                channel.add(j + newrand)
+                channel.remove(j)
+                
+            counter += 1
     
     return None
 
@@ -375,7 +413,7 @@ def mutual_information_matrix(dict sparse):
     cdef double p1_j, p0_j, hj
     cdef double hij
     
-    cdef double[:,:] mat = np.zeros((nchannels, nchannels), dtype="single")
+    cdef double[:,:] mat = np.zeros((nchannels, nchannels), dtype="double")
     cdef double hist_ij[2][2]
     hist_ij[0][:] = [0., 0.]
     hist_ij[1][:] = [0., 0.]
@@ -535,7 +573,7 @@ def transfer_entropy(int x, int y, int lag, dict sparse, bint null = False, null
     
     cdef set source, target, Yt
     
-    if sparse["channels"][x] == 0 or sparse["channels"][y] == 0:
+    if len(sparse["channels"][x]) == 0 or len(sparse["channels"][y]) == 0:
         return 0
     
     target = sparse["channels"][y]
